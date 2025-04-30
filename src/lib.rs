@@ -53,7 +53,7 @@ pub trait Function<S: Stack> {
 }
 
 /// The identity function.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Id;
 
 impl<S: Stack> Function<S> for Id {
@@ -65,7 +65,7 @@ impl<S: Stack> Function<S> for Id {
 }
 
 /// Composition of two functions.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Composition<F, G>(pub F, pub G);
 
 impl<F, G, S: Stack> Function<S> for Composition<F, G>
@@ -94,11 +94,25 @@ macro_rules! compose {
     };
 }
 
+/// The type of composition of multiple functions.
+#[macro_export]
+macro_rules! compose_type {
+    () => {
+        $crate::Id
+    };
+    ($f:ty) => {
+        $f
+    };
+    ($f:ty, $($g:ty),+) => {
+        $crate::Composition<$f, compose_type!($($g),+)>
+    };
+}
+
 /// Run a program on the empty stack.
 #[macro_export]
 macro_rules! run {
-    ($($f:expr),+) => {
-        compose!($($f),+).apply($crate::Nil)
+    ($($f:expr),*) => {
+        compose!($($f),*).apply($crate::Nil)
     };
 }
 
@@ -120,7 +134,7 @@ impl<T, S: Stack> Function<S> for Push<T> {
 }
 
 /// Pop a value off of the stack.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Pop;
 
 impl<T, S: Stack> Function<Cons<T, S>> for Pop {
@@ -133,7 +147,7 @@ impl<T, S: Stack> Function<Cons<T, S>> for Pop {
 
 /// Duplicate the top value of the stack.
 /// The type of the top value must implement `Clone`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Dup;
 
 impl<T: Clone, S: Stack> Function<Cons<T, S>> for Dup {
@@ -151,7 +165,7 @@ impl<T: Clone, S: Stack> Function<Cons<T, S>> for Dup {
 }
 
 /// Swap the top two values of the stack.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Swap;
 
 impl<T, U, S: Stack> Function<Cons<T, Cons<U, S>>> for Swap {
@@ -168,10 +182,54 @@ impl<T, U, S: Stack> Function<Cons<T, Cons<U, S>>> for Swap {
     }
 }
 
+/// Roll the top three values of the stack.
+/// The top value goes to the third position, and the other two values are shifted up.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RollUp;
+
+impl<T, U, V, S: Stack> Function<Cons<T, Cons<U, Cons<V, S>>>> for RollUp {
+    type Out = Cons<U, Cons<V, Cons<T, S>>>;
+
+    fn apply(self, stack: Cons<T, Cons<U, Cons<V, S>>>) -> Self::Out {
+        Cons {
+            top: stack.rest.top,
+            rest: Cons {
+                top: stack.rest.rest.top,
+                rest: Cons {
+                    top: stack.top,
+                    rest: stack.rest.rest.rest,
+                },
+            },
+        }
+    }
+}
+
+/// Roll the top three values of the stack.
+/// The top value goes to the first position, and the other two values are shifted down.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RollDown;
+
+impl<T, U, V, S: Stack> Function<Cons<T, Cons<U, Cons<V, S>>>> for RollDown {
+    type Out = Cons<V, Cons<T, Cons<U, S>>>;
+
+    fn apply(self, stack: Cons<T, Cons<U, Cons<V, S>>>) -> Self::Out {
+        Cons {
+            top: stack.rest.rest.top,
+            rest: Cons {
+                top: stack.top,
+                rest: Cons {
+                    top: stack.rest.top,
+                    rest: stack.rest.rest.rest,
+                },
+            },
+        }
+    }
+}
+
 // Arithmetic operations
 
 /// Add the top two values of the stack.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Add;
 
 impl<T, U: std::ops::Add<T>, S: Stack> Function<Cons<T, Cons<U, S>>> for Add {
@@ -186,7 +244,7 @@ impl<T, U: std::ops::Add<T>, S: Stack> Function<Cons<T, Cons<U, S>>> for Add {
 }
 
 /// Subtract the top two values of the stack.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Sub;
 
 impl<T, U: std::ops::Sub<T>, S: Stack> Function<Cons<T, Cons<U, S>>> for Sub {
@@ -201,7 +259,7 @@ impl<T, U: std::ops::Sub<T>, S: Stack> Function<Cons<T, Cons<U, S>>> for Sub {
 }
 
 /// Negate the top value of the stack.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Neg;
 
 impl<T: std::ops::Neg, S: Stack> Function<Cons<T, S>> for Neg {
@@ -216,7 +274,7 @@ impl<T: std::ops::Neg, S: Stack> Function<Cons<T, S>> for Neg {
 }
 
 /// Multiply the top two values of the stack.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Mul;
 
 impl<T, U: std::ops::Mul<T>, S: Stack> Function<Cons<T, Cons<U, S>>> for Mul {
@@ -231,7 +289,7 @@ impl<T, U: std::ops::Mul<T>, S: Stack> Function<Cons<T, Cons<U, S>>> for Mul {
 }
 
 /// Divide the top two values of the stack.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Div;
 
 impl<T, U: std::ops::Div<T>, S: Stack> Function<Cons<T, Cons<U, S>>> for Div {
@@ -248,7 +306,7 @@ impl<T, U: std::ops::Div<T>, S: Stack> Function<Cons<T, Cons<U, S>>> for Div {
 // Comparison operations
 
 /// Compare the top two values of the stack for equality.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Eq;
 
 impl<T, U: PartialEq<T>, S: Stack> Function<Cons<T, Cons<U, S>>> for Eq {
@@ -263,7 +321,7 @@ impl<T, U: PartialEq<T>, S: Stack> Function<Cons<T, Cons<U, S>>> for Eq {
 }
 
 /// Compare the top two values of the stack for inequality.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Ne;
 
 impl<T, U: PartialEq<T>, S: Stack> Function<Cons<T, Cons<U, S>>> for Ne {
@@ -278,7 +336,7 @@ impl<T, U: PartialEq<T>, S: Stack> Function<Cons<T, Cons<U, S>>> for Ne {
 }
 
 /// Compare the top two values of the stack for less than.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Lt;
 
 impl<T, U: PartialOrd<T>, S: Stack> Function<Cons<T, Cons<U, S>>> for Lt {
@@ -293,7 +351,7 @@ impl<T, U: PartialOrd<T>, S: Stack> Function<Cons<T, Cons<U, S>>> for Lt {
 }
 
 /// Compare the top two values of the stack for less than or equal to.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Le;
 
 impl<T, U: PartialOrd<T>, S: Stack> Function<Cons<T, Cons<U, S>>> for Le {
@@ -308,7 +366,7 @@ impl<T, U: PartialOrd<T>, S: Stack> Function<Cons<T, Cons<U, S>>> for Le {
 }
 
 /// Compare the top two values of the stack for greater than.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Gt;
 
 impl<T, U: PartialOrd<T>, S: Stack> Function<Cons<T, Cons<U, S>>> for Gt {
@@ -323,7 +381,7 @@ impl<T, U: PartialOrd<T>, S: Stack> Function<Cons<T, Cons<U, S>>> for Gt {
 }
 
 /// Compare the top two values of the stack for greater than or equal to.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Ge;
 
 impl<T, U: PartialOrd<T>, S: Stack> Function<Cons<T, Cons<U, S>>> for Ge {
@@ -342,13 +400,13 @@ impl<T, U: PartialOrd<T>, S: Stack> Function<Cons<T, Cons<U, S>>> for Ge {
 /// Push the quoted function as a value onto the stack.
 #[macro_export]
 macro_rules! quote {
-    ($($f:expr),+) => {
-        $crate::Push(compose!($($f),+))
+    ($($f:expr),*) => {
+        $crate::Push(compose!($($f),*))
     };
 }
 
 /// Apply the top value of the stack as a function to the rest of the stack.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Apply;
 
 impl<F, S: Stack> Function<Cons<F, S>> for Apply
@@ -363,7 +421,7 @@ where
 }
 
 /// Quote the top value of the stack into a function that pushes it onto the stack.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Quote;
 
 impl<T, S: Stack> Function<Cons<T, S>> for Quote {
@@ -378,14 +436,10 @@ impl<T, S: Stack> Function<Cons<T, S>> for Quote {
 }
 
 /// Compose the top two values of the stack as functions.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Compose;
 
-impl<F, G, S: Stack> Function<Cons<F, Cons<G, S>>> for Compose
-where
-    G: Function<S>,
-    F: Function<G::Out>,
-{
+impl<F, G, S: Stack> Function<Cons<F, Cons<G, S>>> for Compose {
     type Out = Cons<Composition<G, F>, S>;
 
     fn apply(self, stack: Cons<F, Cons<G, S>>) -> Self::Out {
@@ -397,7 +451,7 @@ where
 }
 
 /// Apply either of two functions depending on the top value of the stack.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct If;
 
 impl<F, G, S: Stack> Function<Cons<bool, Cons<F, Cons<G, S>>>> for If
@@ -528,8 +582,8 @@ mod tests {
     #[test]
     fn test_compose() {
         assert_eq!(
-            run![Push(1), quote![Push(2)], Dup, Compose, Apply],
-            stack![2, 2, 1]
+            run![Push(1), quote![Push(2)], quote![Push(3)], Compose, Apply],
+            stack![3, 2, 1]
         );
     }
 
@@ -547,17 +601,153 @@ mod tests {
 
     #[test]
     fn test_church_bool() {
-        let true_ = quote![Pop, Apply];
-        let false_ = quote![Swap, Pop, Apply];
+        let true_ = compose![Pop];
+        let false_ = compose![Swap, Pop];
         let if_ = Apply;
 
+        assert_eq!(run![Push(1), Push(2), Push(true_), if_], stack![1]);
+        assert_eq!(run![Push(1), Push(2), Push(false_), if_], stack![2]);
+
+        let and = compose![Push(false_), Swap, Apply];
+        let or = compose![Push(true_), RollUp, Apply];
+        let not = compose![Push(false_), Push(true_), RollDown, Apply];
+
         assert_eq!(
-            run![quote![Push(1)], quote![Push(2)], true_, if_],
+            run![Push(1), Push(2), Push(true_), Push(true_), and, if_],
             stack![1]
         );
         assert_eq!(
-            run![quote![Push(1)], quote![Push(2)], false_, if_],
+            run![Push(1), Push(2), Push(true_), Push(false_), and, if_],
             stack![2]
         );
+        assert_eq!(
+            run![Push(1), Push(2), Push(false_), Push(true_), and, if_],
+            stack![2]
+        );
+        assert_eq!(
+            run![Push(1), Push(2), Push(false_), Push(false_), and, if_],
+            stack![2]
+        );
+        assert_eq!(
+            run![Push(1), Push(2), Push(true_), Push(true_), or, if_],
+            stack![1]
+        );
+        assert_eq!(
+            run![Push(1), Push(2), Push(true_), Push(false_), or, if_],
+            stack![1]
+        );
+        assert_eq!(
+            run![Push(1), Push(2), Push(false_), Push(true_), or, if_],
+            stack![1]
+        );
+        assert_eq!(
+            run![Push(1), Push(2), Push(false_), Push(false_), or, if_],
+            stack![2]
+        );
+        assert_eq!(run![Push(1), Push(2), Push(true_), not, if_], stack![2]);
+        assert_eq!(run![Push(1), Push(2), Push(false_), not, if_], stack![1]);
     }
+
+    #[test]
+    fn test_church_numerals() {
+        let zero = compose![Pop, quote![Id]];
+        let one = compose![];
+        let two = compose![Dup, Compose];
+        let three = compose![Dup, Dup, Compose, Compose];
+
+        assert_eq!(run![Push(0), quote![Push(1), Add], zero, Apply], stack![0]);
+        assert_eq!(run![Push(0), quote![Push(1), Add], one, Apply], stack![1]);
+        assert_eq!(run![Push(0), quote![Push(1), Add], two, Apply], stack![2]);
+        assert_eq!(run![Push(0), quote![Push(1), Add], three, Apply], stack![3]);
+
+        let succ = compose![quote![Dup], Swap, Compose, quote![Compose], Compose];
+
+        assert_eq!(
+            run![
+                Push(0),
+                quote![Push(1), Add],
+                Push(zero),
+                succ,
+                Apply,
+                Apply
+            ],
+            stack![1]
+        );
+        assert_eq!(
+            run![Push(0), quote![Push(1), Add], Push(one), succ, Apply, Apply],
+            stack![2]
+        );
+        assert_eq!(
+            run![Push(0), quote![Push(1), Add], Push(two), succ, Apply, Apply],
+            stack![3]
+        );
+
+        let plus = compose![quote![succ], Swap, Apply, Apply];
+        let times = Compose;
+        let power = Apply;
+
+        assert_eq!(
+            run![
+                Push(0),
+                quote![Push(1), Add],
+                Push(two),
+                Push(three),
+                plus,
+                Apply,
+                Apply
+            ],
+            stack![5]
+        );
+        assert_eq!(
+            run![
+                Push(0),
+                quote![Push(1), Add],
+                Push(two),
+                Push(three),
+                times,
+                Apply,
+                Apply
+            ],
+            stack![6]
+        );
+        assert_eq!(
+            run![
+                Push(0),
+                quote![Push(1), Add],
+                Push(two),
+                Push(three),
+                power,
+                Apply,
+                Apply
+            ],
+            stack![8]
+        );
+    }
+
+    // // This would work in an untyped language, but unfortunately Rust's type system
+    // // doesn't allow us to do this.
+    // #[test]
+    // fn test_factorial() {
+    //     let factorial = compose![
+    //         quote![
+    //             Swap,
+    //             Dup,
+    //             Push(0),
+    //             Eq,
+    //             quote![Pop, Pop, Push(1)],
+    //             quote![Dup, Push(1), Sub, RollDown, Dup, Apply, Mul],
+    //             RollDown,
+    //             If
+    //         ],
+    //         Dup,
+    //         Apply
+    //     ];
+
+    //     assert_eq!(run![Push(0), factorial], stack![1]);
+    //     assert_eq!(run![Push(1), factorial], stack![1]);
+    //     assert_eq!(run![Push(2), factorial], stack![2]);
+    //     assert_eq!(run![Push(3), factorial], stack![6]);
+    //     assert_eq!(run![Push(4), factorial], stack![24]);
+    //     assert_eq!(run![Push(5), factorial], stack![120]);
+    // }
 }
